@@ -10,6 +10,28 @@ function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// FastAPI renvoie `detail` sous plusieurs formes selon le type d'erreur :
+// - une chaîne simple (ex. règles métier : "Un livre avec cet ISBN existe déjà")
+// - un tableau d'objets de validation Pydantic sur les erreurs 422, ex :
+//   [{"type":"string_too_short","loc":["body","isbn"],"msg":"String should have at least 5 characters", ...}]
+// Sans ce traitement, `new Error(detail)` sur un tableau produit "[object Object]".
+function extractErrorMessage(body, fallback) {
+  const detail = body && body.detail;
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : item.loc;
+        return field ? `${field} : ${item.msg}` : item.msg || JSON.stringify(item);
+      })
+      .join(" — ");
+  }
+  if (typeof detail === "object") return JSON.stringify(detail);
+  return String(detail);
+}
+
 async function request(url, options = {}, { auth = true } = {}) {
   const res = await fetch(url, {
     headers: {
@@ -31,7 +53,7 @@ async function request(url, options = {}, { auth = true } = {}) {
     let detail = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = extractErrorMessage(body, detail);
     } catch (_) {
       /* pas de corps JSON */
     }
