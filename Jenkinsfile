@@ -9,11 +9,10 @@ pipeline {
     options {
         timestamps()
         disableConcurrentBuilds()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        buildDiscarder(logRotator(numToKeepStr: '5'))
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 echo "Récupération du code depuis GitHub"
@@ -36,7 +35,7 @@ pipeline {
                 stage('Frontend - installation & build') {
                     steps {
                         dir('frontend') {
-                            sh 'npm install'
+                            sh 'npm install --prefer-offline --no-audit'
                             sh 'npm run build'
                         }
                     }
@@ -46,9 +45,8 @@ pipeline {
 
         stage('Build des images Docker') {
             steps {
-                sh '''
-                    docker-compose build
-                '''
+                // Utilisation du cache Docker existant pour aller très vite
+                sh 'docker-compose build'
             }
         }
 
@@ -56,9 +54,9 @@ pipeline {
             steps {
                 sh '''
                     docker-compose up -d postgres
-                    sleep 8
+                    sleep 10
                     docker-compose up -d books-service users-service loans-service
-                    sleep 8
+                    sleep 15
 
                     echo "-- Test de santé books-service --"
                     curl -f http://localhost:8001/health
@@ -85,7 +83,7 @@ pipeline {
         stage('Vérification post-déploiement') {
             steps {
                 sh '''
-                    sleep 5
+                    sleep 10
                     curl -f http://localhost:3000 || (echo "Frontend indisponible" && exit 1)
                 '''
             }
@@ -100,8 +98,6 @@ pipeline {
             echo "❌ Échec du pipeline — nettoyage des conteneurs."
             sh 'docker-compose down || true'
         }
-        always {
-            sh 'docker system prune -f || true'
-        }
+        // Suppression du docker system prune -f pour conserver le cache précieux !
     }
 }
