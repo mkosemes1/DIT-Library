@@ -47,7 +47,7 @@ pipeline {
         stage('Build des images Docker') {
             steps {
                 sh '''
-                    docker compose build --parallel
+                    docker-compose build
                 '''
             }
         }
@@ -55,9 +55,9 @@ pipeline {
         stage('Tests des microservices') {
             steps {
                 sh '''
-                    docker compose up -d postgres
+                    docker-compose up -d postgres
                     sleep 8
-                    docker compose up -d books-service users-service loans-service
+                    docker-compose up -d books-service users-service loans-service
                     sleep 8
 
                     echo "-- Test de santé books-service --"
@@ -76,8 +76,8 @@ pipeline {
             steps {
                 echo "Déploiement automatique avec Docker Compose"
                 sh '''
-                    docker compose up -d
-                    docker compose ps
+                    docker-compose up -d
+                    docker-compose ps
                 '''
             }
         }
@@ -98,7 +98,7 @@ pipeline {
         }
         failure {
             echo "❌ Échec du pipeline — nettoyage des conteneurs."
-            sh 'docker compose down || true'
+            sh 'docker-compose down || true'
         }
         always {
             sh 'docker system prune -f || true'
